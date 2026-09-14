@@ -233,7 +233,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
 
-          <div className="h-64 sm:h-72 w-full">
+          <div className="h-64 sm:h-72 w-full" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={teamDailyTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
@@ -261,7 +261,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <p className="text-xs text-slate-400">Score de fatigue & récupération (1=Optimal, 5=Fatigué)</p>
           </div>
 
-          <div className="h-56 sm:h-64 w-full">
+          <div className="h-56 sm:h-64 w-full" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={teamHooperRadar}>
                 <PolarGrid stroke="#334155" />
@@ -394,9 +394,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                     {/* Status Badge */}
                     <td className="py-3 px-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${colors.bg} ${colors.text} ${colors.border}`}>
-                        {w.acwrStatus.toUpperCase()}
-                      </span>
+                      <div className="flex flex-col gap-1 items-start">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${colors.bg} ${colors.text} ${colors.border}`}>
+                          {w.acwrStatus.toUpperCase()}
+                        </span>
+                        {w.isCalibrating && (
+                          <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-0.5">
+                            <span>⏱️</span>
+                            <span>Étalonnage ({w.historyDays}/21j)</span>
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Monotony */}
@@ -413,11 +421,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                     {/* Hooper Index */}
                     <td className="py-3 px-2">
-                      <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
-                        w.hooperTotalAvg > 12 ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-300'
-                      }`}>
-                        {w.hooperTotalAvg.toFixed(1)}/20
-                      </span>
+                      {w.hooperTotalAvg !== null ? (
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                          w.hooperTotalAvg > 12 ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-300'
+                        }`}>
+                          {w.hooperTotalAvg.toFixed(1)}/20
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 text-[11px] italic font-mono">—</span>
+                      )}
                     </td>
 
                     {/* Details Action Button */}
@@ -525,12 +537,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </span>
                 )}
               </p>
+              {inspectPlayer.isCalibrating && (
+                <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
+                  <span className="text-base leading-none">⏱️</span>
+                  <span><strong>Phase d'étalonnage initial ({inspectPlayer.historyDays}/21 jours) :</strong> L'historique de charge chronique est en cours de constitution. L'ACWR se stabilise au fur et à mesure des microcycles.</span>
+                </div>
+              )}
             </div>
 
             {/* Player 14-day history chart */}
             <div className="space-y-2">
               <h3 className="text-xs font-bold text-slate-300">Historique des 14 dernières séances</h3>
-              <div className="h-44 w-full">
+              <div className="h-44 w-full" dir="ltr">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={inspectPlayerTimeline} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.4} />

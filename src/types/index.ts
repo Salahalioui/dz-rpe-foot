@@ -56,16 +56,18 @@ export interface PlayerWorkload {
   playerId: string;
   player: Player;
   acuteLoad7d: number;      // Last 7 days sum
-  chronicLoad28d: number;  // Last 28 days weekly average (28d sum / 4)
+  chronicLoad28d: number;  // Last 28 days weekly average (28d sum / 4 or uncoupled)
   acwr: number;            // Acute / Chronic
   acwrStatus: ACWRStatus;
   monotony7d: number;      // Mean daily load / SD
   strain7d: number;        // Weekly load * Monotony
   weeklyLoad: number;      // Sum of loads this week
-  hooperTotalAvg: number;  // Hooper readiness index (lower is better, 4-20)
+  hooperTotalAvg: number | null;  // Hooper readiness index (lower is better, 4-20) or null if no logs
   lastRpe: number | null;
   lastSessionDate: string | null;
   logCount7d: number;
+  isCalibrating: boolean;  // True if history < 21 days
+  historyDays: number;     // Number of days recorded in history
 }
 
 export interface Team {

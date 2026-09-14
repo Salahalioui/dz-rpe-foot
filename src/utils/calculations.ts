@@ -85,30 +85,59 @@ export function calculatePlayerWorkload(
     });
   }
 
-  // Calculate 28-day chronic load (sum of 28 days / 4 = average weekly load)
-  let chronicLoadSum = 0;
-  for (let i = 0; i < 28; i++) {
-    const currentDay = new Date(twentyEightDaysAgo);
+  // Determine history window for this player
+  const earliestLogDate = playerLogs.length > 0 ? playerLogs[playerLogs.length - 1].date : null;
+  let historyDays = 0;
+  if (earliestLogDate) {
+    const diffTime = Math.max(0, targetDate.getTime() - earliestLogDate.getTime());
+    historyDays = Math.min(28, Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1);
+  }
+  const isCalibrating = historyDays < 21;
+
+  // Calculate 28-day chronic load (Uncoupled: Days -27 to -7, excluding acute 7 days)
+  // Window: targetDate - 27 days to targetDate - 7 days (21 days prior to acute window)
+  let uncoupledChronicSum = 0;
+  const twentyOneDaysBeforeAcute = new Date(twentyEightDaysAgo);
+
+  for (let i = 0; i < 21; i++) {
+    const currentDay = new Date(twentyOneDaysBeforeAcute);
     currentDay.setDate(currentDay.getDate() + i);
     const dayStr = currentDay.toISOString().split('T')[0];
     const dayLogs = playerLogs.filter(l => l.dateStr === dayStr);
     const dayLoad = dayLogs.reduce((sum, l) => sum + (l.sessionLoad || (l.rpeScore * l.actualDuration)), 0);
-    chronicLoadSum += dayLoad;
+    uncoupledChronicSum += dayLoad;
   }
 
-  const chronicLoad28d = Math.round(chronicLoadSum / 4);
-
-  // ACWR Ratio: Acute Load (7d) / Chronic Load (weekly average of 28d)
+  // Normalisation of chronic load depending on historical availability
+  let chronicLoad28d = 0;
   let acwr = 1.0;
-  if (chronicLoad28d > 0) {
-    acwr = Number((acuteLoad7d / chronicLoad28d).toFixed(2));
-  } else if (acuteLoad7d > 0) {
-    acwr = 1.5; // High initial spike
+
+  if (historyDays >= 21) {
+    // Full Uncoupled ACWR: 21 days / 3 = weekly average
+    chronicLoad28d = Math.round(uncoupledChronicSum / 3);
+    if (chronicLoad28d > 0) {
+      acwr = Number((acuteLoad7d / chronicLoad28d).toFixed(2));
+    } else {
+      acwr = acuteLoad7d > 0 ? 1.5 : 1.0;
+    }
+  } else if (historyDays > 7) {
+    // Partial chronic period (between 8 and 20 days tracked)
+    const priorDaysAvailable = historyDays - 7;
+    const priorWeeks = priorDaysAvailable / 7;
+    chronicLoad28d = Math.round(uncoupledChronicSum / Math.max(1, priorWeeks));
+    if (chronicLoad28d > 0) {
+      acwr = Number((acuteLoad7d / chronicLoad28d).toFixed(2));
+    } else {
+      acwr = 1.0;
+    }
   } else {
-    acwr = 0.5;
+    // Early calibration period (<= 7 days of logs)
+    // Avoid false ACWR spike (e.g. 4.0) by anchoring chronic to current acute baseline
+    chronicLoad28d = Math.round(acuteLoad7d);
+    acwr = 1.0;
   }
 
-  // Monotony (Mean daily load / SD of daily load over 7 days)
+  // Monotony (Mean daily load / SD of daily load over 7 days - Foster 1998)
   const meanDailyLoad = acuteLoad7d / 7;
   const variance = dailyLoads7d.reduce((sum, val) => sum + Math.pow(val - meanDailyLoad, 2), 0) / 7;
   const stdDev = Math.sqrt(variance);
@@ -117,8 +146,8 @@ export function calculatePlayerWorkload(
   // Strain = Weekly Load * Monotony
   const strain7d = Math.round(acuteLoad7d * monotony7d);
 
-  // Hooper Index Average (4-20)
-  const hooperTotalAvg = hooperCount > 0 ? Number((hooperSum / hooperCount).toFixed(1)) : 8.0;
+  // Hooper Index Average (4-20) or null if no logs with Hooper
+  const hooperTotalAvg = hooperCount > 0 ? Number((hooperSum / hooperCount).toFixed(1)) : null;
 
   const lastLog = playerLogs.length > 0 ? playerLogs[0] : null;
 
@@ -135,7 +164,9 @@ export function calculatePlayerWorkload(
     hooperTotalAvg,
     lastRpe: lastLog ? lastLog.rpeScore : null,
     lastSessionDate: lastLog ? lastLog.dateStr : null,
-    logCount7d
+    logCount7d,
+    isCalibrating,
+    historyDays
   };
 }
 

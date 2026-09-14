@@ -14,6 +14,7 @@ export interface TranslationDict {
   selectSession: string;
   loggedCount: string;
   tapToLog: string;
+  toLog: string;
   alreadyLogged: string;
   pending: string;
   rpeScaleTitle: string;
@@ -141,6 +142,7 @@ export const translations: Record<Language, TranslationDict> = {
     selectSession: "Sélectionner la séance :",
     loggedCount: "enregistrés sur",
     tapToLog: "Toucher un joueur pour noter sa séance (RPE)",
+    toLog: "Toucher pour noter",
     alreadyLogged: "Déjà noté",
     pending: "En attente",
     rpeScaleTitle: "Échelle de Perception de l'Effort (Borg CR-10)",
@@ -261,6 +263,7 @@ export const translations: Record<Language, TranslationDict> = {
     selectSession: "اختر الحصة التدريبية :",
     loggedCount: "مسجلين من أصل",
     tapToLog: "انقر على اسم/صورة اللاعب لتسجيل مقياس الجهد (RPE)",
+    toLog: "اضغط للتسجيل",
     alreadyLogged: "تم التسجيل",
     pending: "في الانتظار",
     rpeScaleTitle: "مقياس الجهد المدرك لبورغ (Borg CR-10)",
@@ -381,7 +384,8 @@ export const translations: Record<Language, TranslationDict> = {
     selectSession: "Select Session:",
     loggedCount: "logged out of",
     tapToLog: "Tap a player card to log Session RPE",
-    alreadyLogged: "Logged",
+    toLog: "Tap to log",
+    alreadyLogged: "Already logged",
     pending: "Pending",
     rpeScaleTitle: "Borg CR-10 Rate of Perceived Exertion",
     durationMin: "Actual Duration (min)",

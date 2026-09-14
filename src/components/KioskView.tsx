@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { Player, Session, RPELog, Language, Position } from '../types';
+import { Users, Lock, Unlock, KeyRound, CalendarPlus } from 'lucide-react';
+
+// (Users icon used in empty-state UI)
 import { translations } from '../i18n/translations';
 import { CheckCircle2, Clock, Zap, ChevronRight, Moon, Flame, Battery, ShieldAlert, Sparkles, X, Plus, Minus, UserCheck } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -9,6 +12,7 @@ interface KioskViewProps {
   sessions: Session[];
   logs: RPELog[];
   onSaveLog: (log: RPELog) => void;
+  onAddSession?: (session: Session) => void;
   lang: Language;
 }
 
@@ -31,6 +35,7 @@ export const KioskView: React.FC<KioskViewProps> = ({
   sessions,
   logs,
   onSaveLog,
+  onAddSession,
   lang
 }) => {
   const t = translations[lang];
@@ -39,6 +44,12 @@ export const KioskView: React.FC<KioskViewProps> = ({
   const [selectedSessionId, setSelectedSessionId] = useState<string>(sessions[0]?.id || '');
   const [filterMode, setFilterMode] = useState<'all' | 'pending' | 'logged'>('all');
   const [activePlayer, setActivePlayer] = useState<Player | null>(null);
+
+  // Kiosk Mode: Coach Express vs Secured PIN Mode
+  const [entryMode, setEntryMode] = useState<'coach' | 'pin'>('coach');
+  const [pinModalPlayer, setPinModalPlayer] = useState<Player | null>(null);
+  const [enteredPin, setEnteredPin] = useState<string>('');
+  const [pinError, setPinError] = useState<boolean>(false);
 
   // Modal form states
   const [selectedRpe, setSelectedRpe] = useState<number>(5);
@@ -50,14 +61,53 @@ export const KioskView: React.FC<KioskViewProps> = ({
   const [stressScore, setStressScore] = useState<number>(1);
   const [notes, setNotes] = useState<string>('');
 
+  // Haptic feedback helper for tactile pitch experience
+  const triggerHaptic = (pattern: number | number[] = 15) => {
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
   const currentSession = sessions.find(s => s.id === selectedSessionId) || sessions[0];
+
+  // Check if today already has a registered session
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const hasTodaySession = sessions.some(s => s.date === todayDateStr);
+
+  const handleCreateTodaySession = () => {
+    if (!onAddSession) return;
+    const newSess: Session = {
+      id: `sess_${Date.now()}`,
+      teamId: 'team_dz_u17_01',
+      date: todayDateStr,
+      type: 'tactical',
+      microcycleDay: 'MD-2',
+      plannedDuration: 75,
+      title: `Séance terrain du ${todayDateStr}`,
+      targetRpe: 6,
+      location: 'Stade Municipal',
+      isCompleted: false
+    };
+    onAddSession(newSess);
+    setSelectedSessionId(newSess.id);
+    triggerHaptic([25, 40, 25]);
+  };
 
   // Logs for current session
   const sessionLogs = logs.filter(l => l.sessionId === currentSession?.id);
   const loggedPlayerIds = new Set(sessionLogs.map(l => l.playerId));
 
-  const totalPlayers = players.filter(p => p.isActive).length;
-  const loggedCount = players.filter(p => p.isActive && loggedPlayerIds.has(p.id)).length;
+  // Sort players strictly by Jersey Number
+  const sortedPlayers = useMemo(() => {
+    return [...players].sort((a, b) => a.jerseyNumber - b.jerseyNumber);
+  }, [players]);
+
+  const totalPlayers = sortedPlayers.filter(p => p.isActive).length;
+  const loggedCount = sortedPlayers.filter(p => p.isActive && loggedPlayerIds.has(p.id)).length;
   const progressPercent = totalPlayers > 0 ? Math.round((loggedCount / totalPlayers) * 100) : 0;
 
   const openLogModal = (player: Player) => {
@@ -86,8 +136,49 @@ export const KioskView: React.FC<KioskViewProps> = ({
     }
   };
 
+  const handlePlayerCardClick = (player: Player) => {
+    triggerHaptic(12);
+    if (entryMode === 'pin') {
+      setPinModalPlayer(player);
+      setEnteredPin('');
+      setPinError(false);
+    } else {
+      openLogModal(player);
+    }
+  };
+
+  const handlePinInput = (digit: string) => {
+    triggerHaptic(10);
+    const nextPin = enteredPin + digit;
+    if (nextPin.length <= 4) {
+      setEnteredPin(nextPin);
+      setPinError(false);
+
+      if (nextPin.length === 4) {
+        if (pinModalPlayer && nextPin === pinModalPlayer.pin) {
+          triggerHaptic([20, 40, 20]);
+          const target = pinModalPlayer;
+          setPinModalPlayer(null);
+          setEnteredPin('');
+          openLogModal(target);
+        } else {
+          triggerHaptic([60, 40, 60]);
+          setPinError(true);
+        }
+      }
+    }
+  };
+
+  const handlePinBackspace = () => {
+    triggerHaptic(10);
+    setEnteredPin(prev => prev.slice(0, -1));
+    setPinError(false);
+  };
+
   const handleSave = (andNext = false) => {
     if (!activePlayer || !currentSession) return;
+
+    triggerHaptic([20, 30, 20]);
 
     const newLog: RPELog = {
       id: `log_${currentSession.id}_${activePlayer.id}`,
@@ -121,10 +212,17 @@ export const KioskView: React.FC<KioskViewProps> = ({
     }
 
     if (andNext) {
-      // Find next unlogged player
-      const pendingPlayers = players.filter(p => p.isActive && !loggedPlayerIds.has(p.id) && p.id !== activePlayer.id);
+      // Find next unlogged player in jersey number order
+      const pendingPlayers = sortedPlayers.filter(p => p.isActive && !loggedPlayerIds.has(p.id) && p.id !== activePlayer.id);
       if (pendingPlayers.length > 0) {
-        openLogModal(pendingPlayers[0]);
+        if (entryMode === 'pin') {
+          setActivePlayer(null);
+          setPinModalPlayer(pendingPlayers[0]);
+          setEnteredPin('');
+          setPinError(false);
+        } else {
+          openLogModal(pendingPlayers[0]);
+        }
       } else {
         setActivePlayer(null);
       }
@@ -133,7 +231,7 @@ export const KioskView: React.FC<KioskViewProps> = ({
     }
   };
 
-  const filteredPlayers = players.filter(player => {
+  const filteredPlayers = sortedPlayers.filter(player => {
     if (!player.isActive) return false;
     const isLogged = loggedPlayerIds.has(player.id);
     if (filterMode === 'pending') return !isLogged;
@@ -207,10 +305,63 @@ export const KioskView: React.FC<KioskViewProps> = ({
             </div>
           </div>
 
-          {/* Session Switcher Dropdown */}
-          <div className="shrink-0">
+          {/* Controls: Mode Switcher & Session Switcher */}
+          <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+            {/* Mode Switcher: Coach Direct vs Borne PIN */}
             <div className="flex flex-col space-y-1.5">
-              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">{t.selectSession}</label>
+              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Mode de Saisie</label>
+              <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntryMode('coach');
+                    triggerHaptic(10);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    entryMode === 'coach'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Saisie directe 1-clic par l'entraîneur"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Coach (Direct)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntryMode('pin');
+                    triggerHaptic(10);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    entryMode === 'pin'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Chaque joueur saisit son code PIN secret"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Borne (PIN)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Session Switcher Dropdown */}
+            <div className="flex flex-col space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">{t.selectSession}</label>
+                {onAddSession && (
+                  <button
+                    type="button"
+                    onClick={handleCreateTodaySession}
+                    className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
+                    title="Créer rapidement la séance du jour"
+                  >
+                    <CalendarPlus className="w-3 h-3" />
+                    <span>+ Aujourd'hui</span>
+                  </button>
+                )}
+              </div>
               <select
                 value={selectedSessionId}
                 onChange={(e) => setSelectedSessionId(e.target.value)}
@@ -225,6 +376,23 @@ export const KioskView: React.FC<KioskViewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Banner if no session today */}
+        {!hasTodaySession && onAddSession && (
+          <div className="mt-4 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-emerald-300 font-medium">
+              <CalendarPlus className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Aucune séance enregistrée pour aujourd'hui ({todayDateStr}). Prêt pour l'entraînement ?</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCreateTodaySession}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black shrink-0 shadow transition-all touch-press"
+            >
+              + Démarrer séance
+            </button>
+          </div>
+        )}
 
         {/* Progress Bar & Quick Filters */}
         <div className="mt-6 pt-5 border-t border-slate-800/90 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -284,67 +452,81 @@ export const KioskView: React.FC<KioskViewProps> = ({
         </div>
       </div>
 
-      {/* Grid of Players */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-        {filteredPlayers.map(player => {
-          const isLogged = loggedPlayerIds.has(player.id);
-          const playerLog = sessionLogs.find(l => l.playerId === player.id);
+      {/* Grid of Players or Empty State */}
+      {players.length === 0 ? (
+        <div className="glass-card rounded-3xl p-8 sm:p-12 border border-white/[0.08] text-center max-w-xl mx-auto space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto text-slate-400">
+            <Users className="w-7 h-7 text-emerald-400" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-lg font-bold text-white">Aucun joueur dans l'effectif</h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Ajoutez vos joueurs dans l'onglet "Effectif" ou chargez l'équipe démo dans l'onglet "Rapports & Données".
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+          {filteredPlayers.map(player => {
+            const isLogged = loggedPlayerIds.has(player.id);
+            const playerLog = sessionLogs.find(l => l.playerId === player.id);
 
-          return (
-            <div
-              key={player.id}
-              onClick={() => openLogModal(player)}
-              className={`touch-press group relative cursor-pointer rounded-2xl p-4 transition-all duration-200 border text-center flex flex-col justify-between select-none ${
-                isLogged
-                  ? 'bg-slate-900/90 border-emerald-500/40 hover:border-emerald-400 shadow-md shadow-emerald-950/20'
-                  : 'bg-slate-800/80 border-slate-700/80 hover:border-emerald-500/60 hover:bg-slate-800 shadow-lg'
-              }`}
-            >
-              {/* Header: Jersey + Position */}
-              <div className="flex items-center justify-between mb-2">
-                <span className="w-8 h-8 rounded-xl bg-slate-950 border border-slate-700/80 flex items-center justify-center font-black text-xs text-emerald-400 shadow-inner">
-                  #{player.jerseyNumber}
-                </span>
-                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${getPositionBadge(player.position)}`}>
-                  {player.position}
-                </span>
-              </div>
-
-              {/* Player Initials Avatar */}
-              <div className="my-2 flex justify-center">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg border-2 transition-transform group-hover:scale-105 shadow-md ${
+            return (
+              <div
+                key={player.id}
+                onClick={() => handlePlayerCardClick(player)}
+                className={`touch-press group relative cursor-pointer rounded-2xl p-4 transition-all duration-200 border text-center flex flex-col justify-between select-none ${
                   isLogged
-                    ? 'bg-gradient-to-tr from-emerald-900/80 to-emerald-700/50 text-emerald-200 border-emerald-500/60 shadow-emerald-950/40'
-                    : 'bg-gradient-to-tr from-slate-800 to-slate-700 text-white border-slate-600'
-                }`}>
-                  {player.firstName[0]}{player.lastName[0]}
+                    ? 'bg-slate-900/90 border-emerald-500/40 hover:border-emerald-400 shadow-md shadow-emerald-950/20'
+                    : 'bg-slate-800/80 border-slate-700/80 hover:border-emerald-500/60 hover:bg-slate-800 shadow-lg'
+                }`}
+              >
+                {/* Header: Jersey + Position */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="w-8 h-8 rounded-xl bg-slate-950 border border-slate-700/80 flex items-center justify-center font-black text-xs text-emerald-400 shadow-inner">
+                    #{player.jerseyNumber}
+                  </span>
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${getPositionBadge(player.position)}`}>
+                    {player.position}
+                  </span>
+                </div>
+
+                {/* Player Initials Avatar */}
+                <div className="my-2 flex justify-center">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg border-2 transition-transform group-hover:scale-105 shadow-md ${
+                    isLogged
+                      ? 'bg-gradient-to-tr from-emerald-900/80 to-emerald-700/50 text-emerald-200 border-emerald-500/60 shadow-emerald-950/40'
+                      : 'bg-gradient-to-tr from-slate-800 to-slate-700 text-white border-slate-600'
+                  }`}>
+                    {player.firstName[0]}{player.lastName[0]}
+                  </div>
+                </div>
+
+                {/* Names */}
+                <div className="space-y-0.5 my-1">
+                  <h3 className="font-black text-sm text-white truncate">{player.lastName}</h3>
+                  <p className="text-xs text-slate-400 font-medium truncate">{player.firstName}</p>
+                </div>
+
+                {/* Status Footer */}
+                <div className="mt-3 pt-2.5 border-t border-slate-800">
+                  {isLogged ? (
+                    <div className="flex items-center justify-center space-x-1.5 rtl:space-x-reverse text-emerald-400 text-xs font-bold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="truncate">RPE {playerLog?.rpeScore} ({playerLog?.sessionLoad} UA)</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center space-x-1 rtl:space-x-reverse text-amber-400 text-xs font-semibold">
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span>{t.toLog}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Names */}
-              <div className="space-y-0.5 my-1">
-                <h3 className="font-black text-sm text-white truncate">{player.lastName}</h3>
-                <p className="text-xs text-slate-400 font-medium truncate">{player.firstName}</p>
-              </div>
-
-              {/* Status Footer */}
-              <div className="mt-3 pt-2.5 border-t border-slate-800">
-                {isLogged ? (
-                  <div className="flex items-center justify-center space-x-1.5 rtl:space-x-reverse text-emerald-400 text-xs font-bold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate">RPE {playerLog?.rpeScore} ({playerLog?.sessionLoad} UA)</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center space-x-1 rtl:space-x-reverse text-amber-400 text-xs font-semibold">
-                    <Clock className="w-3.5 h-3.5 shrink-0" />
-                    <span>{t.tapToLog.split(' ')[0]}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* RPE & Wellness Modal */}
       {activePlayer && (
@@ -397,7 +579,10 @@ export const KioskView: React.FC<KioskViewProps> = ({
                     <button
                       key={item.score}
                       type="button"
-                      onClick={() => setSelectedRpe(item.score)}
+                      onClick={() => {
+                        setSelectedRpe(item.score);
+                        triggerHaptic(12);
+                      }}
                       className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center space-y-1 text-center touch-press ${
                         isSelected
                           ? `${item.color} ring-4 ring-emerald-500/40 scale-105 font-black shadow-xl`
@@ -427,8 +612,11 @@ export const KioskView: React.FC<KioskViewProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setActualDuration(prev => Math.max(10, prev - 5))}
-                    className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center border border-slate-700"
+                    onClick={() => {
+                      setActualDuration(prev => Math.max(10, prev - 5));
+                      triggerHaptic(10);
+                    }}
+                    className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center border border-slate-700 touch-press"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
@@ -436,15 +624,39 @@ export const KioskView: React.FC<KioskViewProps> = ({
                     type="number"
                     value={actualDuration}
                     onChange={(e) => setActualDuration(Number(e.target.value))}
-                    className="w-20 text-center bg-slate-900 border border-slate-700 text-white font-black text-base rounded-xl py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-20 text-center bg-slate-900 border border-slate-700 text-white font-black text-base rounded-xl py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
                   />
                   <button
                     type="button"
-                    onClick={() => setActualDuration(prev => prev + 5)}
-                    className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center border border-slate-700"
+                    onClick={() => {
+                      setActualDuration(prev => prev + 5);
+                      triggerHaptic(10);
+                    }}
+                    className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center border border-slate-700 touch-press"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
+                </div>
+
+                {/* Quick Presets Pills */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[90, 75, 60, 45, 30, 15].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        setActualDuration(preset);
+                        triggerHaptic(10);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border touch-press ${
+                        actualDuration === preset
+                          ? 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50 shadow-sm'
+                          : 'bg-slate-800/80 text-slate-400 border-slate-700/60 hover:text-white hover:bg-slate-700'
+                      }`}
+                    >
+                      {preset}'
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -593,6 +805,100 @@ export const KioskView: React.FC<KioskViewProps> = ({
               >
                 <span>{t.nextPlayer}</span>
                 <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* PIN Verification Keypad Modal (Mode Borne Sécurisée) */}
+      {pinModalPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-sm bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl space-y-5 text-center">
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-slate-950 border border-slate-700 flex items-center justify-center font-black text-xs text-emerald-400">
+                  #{pinModalPlayer.jerseyNumber}
+                </span>
+                <span className="text-sm font-black text-white">{pinModalPlayer.firstName} {pinModalPlayer.lastName}</span>
+              </div>
+              <button
+                onClick={() => setPinModalPlayer(null)}
+                className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-white">Code PIN Joueur</h3>
+              <p className="text-xs text-slate-400">Entrez votre code secret à 4 chiffres</p>
+            </div>
+
+            {/* 4 PIN Dots */}
+            <div className="flex justify-center items-center gap-3 py-2">
+              {[0, 1, 2, 3].map(i => (
+                <div
+                  key={i}
+                  className={`w-4 h-4 rounded-full transition-all ${
+                    enteredPin.length > i
+                      ? 'bg-emerald-400 scale-110 shadow-lg shadow-emerald-500/50'
+                      : 'bg-slate-800 border-2 border-slate-700'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {pinError && (
+              <p className="text-xs font-bold text-rose-400 animate-pulse">
+                Code PIN incorrect (Code démo : {pinModalPlayer.pin})
+              </p>
+            )}
+
+            {/* 0-9 Keypad */}
+            <div className="grid grid-cols-3 gap-2 max-w-[240px] mx-auto pt-1">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(digit => (
+                <button
+                  key={digit}
+                  type="button"
+                  onClick={() => handlePinInput(digit.toString())}
+                  className="h-12 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black text-lg border border-slate-700/80 transition-all touch-press"
+                >
+                  {digit}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(10);
+                  const target = pinModalPlayer;
+                  setPinModalPlayer(null);
+                  openLogModal(target);
+                }}
+                className="h-12 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white font-bold text-[10px] border border-slate-700/60 flex items-center justify-center"
+                title="Déverrouiller sans code (Coach)"
+              >
+                Coach
+              </button>
+              <button
+                key={0}
+                type="button"
+                onClick={() => handlePinInput('0')}
+                className="h-12 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-black text-lg border border-slate-700/80 transition-all touch-press"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                onClick={handlePinBackspace}
+                className="h-12 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white font-bold text-sm border border-slate-700/60 flex items-center justify-center touch-press"
+              >
+                ⌫
               </button>
             </div>
 

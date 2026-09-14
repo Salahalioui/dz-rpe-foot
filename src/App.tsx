@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Navbar } from './components/Navbar';
 import { KioskView } from './components/KioskView';
-import { DashboardView } from './components/DashboardView';
-import { SessionsView } from './components/SessionsView';
-import { PlayersView } from './components/PlayersView';
-import { ReportsView } from './components/ReportsView';
-import { AboutView } from './components/AboutView';
 import { StorageService } from './services/storage';
-import type { Player, Session, RPELog, Language } from './types';
+import type { Player, Session, RPELog, Language, Team } from './types';
+
+// Code-split heavy views to reduce initial bundle from 1.5MB to < 180KB
+const DashboardView = lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
+const SessionsView = lazy(() => import('./components/SessionsView').then(m => ({ default: m.SessionsView })));
+const PlayersView = lazy(() => import('./components/PlayersView').then(m => ({ default: m.PlayersView })));
+const ReportsView = lazy(() => import('./components/ReportsView').then(m => ({ default: m.ReportsView })));
+const AboutView = lazy(() => import('./components/AboutView').then(m => ({ default: m.AboutView })));
 
 export const App: React.FC = () => {
   const [data, setData] = useState(() => StorageService.getInitialData());
@@ -15,6 +17,9 @@ export const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(() => {
     const saved = localStorage.getItem('dz_rpe_lang');
     return (saved as Language) || 'fr';
+  });
+  const [themeMode, setThemeMode] = useState<'dark' | 'sunlight'>(() => {
+    return (localStorage.getItem('dz_rpe_theme') as 'dark' | 'sunlight') || 'dark';
   });
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
@@ -36,6 +41,33 @@ export const App: React.FC = () => {
     document.documentElement.lang = lang;
     localStorage.setItem('dz_rpe_lang', lang);
   }, [lang]);
+
+  // Update theme mode (dark vs sunlight high-contrast outdoor)
+  useEffect(() => {
+    if (themeMode === 'sunlight') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('sunlight');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('sunlight');
+    }
+    localStorage.setItem('dz_rpe_theme', themeMode);
+  }, [themeMode]);
+
+  // Reset / Clear database helpers
+  const handleResetDemo = () => {
+    if (confirm('Charger l\'équipe de démonstration U17 Algérie (20 joueurs, 14 séances d\'historique) ?')) {
+      const defaultData = StorageService.resetToDefault();
+      setData(defaultData);
+    }
+  };
+
+  const handleClearAll = () => {
+    if (confirm('⚠️ Attention : Voulez-vous vraiment TOUT VIDER (0 joueurs, 0 séances) pour entrer votre propre effectif réel ?')) {
+      const emptyData = StorageService.clearAllData();
+      setData(emptyData);
+    }
+  };
 
   // Handler for saving a new or updated RPE log
   const handleSaveLog = (newLog: RPELog) => {
@@ -106,8 +138,12 @@ export const App: React.FC = () => {
     setCurrentTab('kiosk');
   };
 
+  const isSunlight = themeMode === 'sunlight';
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+    <div className={`min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white font-sans transition-colors ${
+      isSunlight ? 'bg-slate-100 text-slate-900' : 'bg-[#08090a] text-[#f7f8f8]'
+    }`}>
       {/* Top Navbar */}
       <Navbar
         currentTab={currentTab}
@@ -117,6 +153,8 @@ export const App: React.FC = () => {
         isOnline={isOnline}
         teamName={data.team.name}
         category={data.team.category}
+        themeMode={themeMode}
+        setThemeMode={setThemeMode}
       />
 
       {/* Main Content Area */}
@@ -127,62 +165,74 @@ export const App: React.FC = () => {
             sessions={data.sessions}
             logs={data.logs}
             onSaveLog={handleSaveLog}
-            lang={lang}
-          />
-        )}
-
-        {currentTab === 'dashboard' && (
-          <DashboardView
-            players={data.players}
-            sessions={data.sessions}
-            logs={data.logs}
-            lang={lang}
-          />
-        )}
-
-        {currentTab === 'sessions' && (
-          <SessionsView
-            sessions={data.sessions}
-            logs={data.logs}
-            players={data.players}
             onAddSession={handleAddSession}
-            onDeleteSession={handleDeleteSession}
-            onOpenKioskSession={handleOpenKioskSession}
             lang={lang}
           />
         )}
 
-        {currentTab === 'players' && (
-          <PlayersView
-            players={data.players}
-            onAddPlayer={handleAddPlayer}
-            onUpdatePlayer={handleUpdatePlayer}
-            onDeletePlayer={handleDeletePlayer}
-            lang={lang}
-          />
-        )}
+        <Suspense fallback={
+          <div className="flex flex-col items-center justify-center py-24 space-y-3">
+            <div className="w-8 h-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+            <p className="text-xs font-bold text-slate-400">Chargement des données...</p>
+          </div>
+        }>
+          {currentTab === 'dashboard' && (
+            <DashboardView
+              players={data.players}
+              sessions={data.sessions}
+              logs={data.logs}
+              lang={lang}
+            />
+          )}
 
-        {currentTab === 'reports' && (
-          <ReportsView
-            team={data.team}
-            players={data.players}
-            sessions={data.sessions}
-            logs={data.logs}
-            onDataRestored={(restored) => setData(restored)}
-            lang={lang}
-          />
-        )}
+          {currentTab === 'sessions' && (
+            <SessionsView
+              sessions={data.sessions}
+              logs={data.logs}
+              players={data.players}
+              onAddSession={handleAddSession}
+              onDeleteSession={handleDeleteSession}
+              onOpenKioskSession={handleOpenKioskSession}
+              lang={lang}
+            />
+          )}
 
-        {currentTab === 'about' && (
-          <AboutView lang={lang} />
-        )}
+          {currentTab === 'players' && (
+            <PlayersView
+              players={data.players}
+              onAddPlayer={handleAddPlayer}
+              onUpdatePlayer={handleUpdatePlayer}
+              onDeletePlayer={handleDeletePlayer}
+              onResetDemo={handleResetDemo}
+              onClearAll={handleClearAll}
+              lang={lang}
+            />
+          )}
+
+          {currentTab === 'reports' && (
+            <ReportsView
+              team={data.team}
+              players={data.players}
+              sessions={data.sessions}
+              logs={data.logs}
+              onDataRestored={(restored: { team: Team; players: Player[]; sessions: Session[]; logs: RPELog[] }) => setData(restored)}
+              lang={lang}
+            />
+          )}
+
+          {currentTab === 'about' && (
+            <AboutView lang={lang} />
+          )}
+        </Suspense>
       </main>
 
       {/* App Footer */}
-      <footer className="hidden sm:block border-t border-slate-900 bg-slate-950/80 py-4 text-center text-xs text-slate-400">
+      <footer className={`hidden sm:block border-t py-4 text-center text-xs transition-colors ${
+        isSunlight ? 'bg-white border-slate-300 text-slate-600' : 'bg-[#08090a] border-white/[0.06] text-slate-500'
+      }`}>
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p>© {new Date().getFullYear()} DZ-RPE Foot • Développé par <strong className="text-emerald-400">Dr. Salah ALIOUI</strong> (PhD Sciences du Sport, Algérie)</p>
-          <p className="text-slate-400">Modèle Validé Foster sRPE • ACWR Uncoupled • Hooper Index</p>
+          <p>© {new Date().getFullYear()} DZ-RPE Foot • Développé par <strong className="text-emerald-500 font-semibold">Dr. Salah ALIOUI</strong> (PhD Sciences du Sport)</p>
+          <p className="font-mono text-[11px] text-slate-500">Foster sRPE (2001) • ACWR Uncoupled • Hooper Index</p>
         </div>
       </footer>
     </div>

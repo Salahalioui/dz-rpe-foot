@@ -1,8 +1,5 @@
 import type { Team, Player, Session, RPELog, PlayerWorkload } from '../types';
 import { generateDefaultData, calculatePlayerWorkload } from '../utils/calculations';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 const STORAGE_KEYS = {
   TEAM: 'dz_rpe_team',
@@ -40,6 +37,21 @@ export class StorageService {
     }
   }
 
+  static async requestPersistentStorage(): Promise<boolean> {
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+      try {
+        const isPersisted = await navigator.storage.persisted();
+        if (!isPersisted) {
+          return await navigator.storage.persist();
+        }
+        return true;
+      } catch (e) {
+        console.warn('Storage persist request failed', e);
+      }
+    }
+    return false;
+  }
+
   static saveAll(team: Team, players: Player[], sessions: Session[], logs: RPELog[]) {
     localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(team));
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
@@ -51,6 +63,23 @@ export class StorageService {
     const defaultData = generateDefaultData();
     this.saveAll(defaultData.team, defaultData.players, defaultData.sessions, defaultData.logs);
     return defaultData;
+  }
+
+  static clearAllData(): { team: Team; players: Player[]; sessions: Session[]; logs: RPELog[] } {
+    const emptyTeam: Team = {
+      id: 'team_custom',
+      name: 'Mon Club Football',
+      club: 'Académie Football',
+      city: 'El Bayadh',
+      category: 'U17',
+      coachName: 'Coach Principal',
+      season: '2025/2026'
+    };
+    const emptyPlayers: Player[] = [];
+    const emptySessions: Session[] = [];
+    const emptyLogs: RPELog[] = [];
+    this.saveAll(emptyTeam, emptyPlayers, emptySessions, emptyLogs);
+    return { team: emptyTeam, players: emptyPlayers, sessions: emptySessions, logs: emptyLogs };
   }
 
   static exportToJson(team: Team, players: Player[], sessions: Session[], logs: RPELog[]) {
@@ -99,7 +128,8 @@ export class StorageService {
     });
   }
 
-  static exportToExcel(team: Team, players: Player[], sessions: Session[], logs: RPELog[]) {
+  static async exportToExcel(team: Team, players: Player[], sessions: Session[], logs: RPELog[]) {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
 
     // 1. Raw Logs Sheet (Ready for Jamovi / SPSS)
@@ -150,7 +180,8 @@ export class StorageService {
       Monotony_7d: w.monotony7d,
       Strain_7d_AU: w.strain7d,
       Weekly_Load_AU: w.weeklyLoad,
-      Hooper_Avg_4to20: w.hooperTotalAvg,
+      Hooper_Avg_4to20: w.hooperTotalAvg !== null ? w.hooperTotalAvg : '',
+      Calibrating: w.isCalibrating ? 'YES' : 'NO',
       Sessions_Logged_7d: w.logCount7d
     }));
     const wsSummary = XLSX.utils.json_to_sheet(summaryData);
@@ -177,10 +208,26 @@ export class StorageService {
     const wsSessions = XLSX.utils.json_to_sheet(sessionOverview);
     XLSX.utils.book_append_sheet(wb, wsSessions, 'Sessions_Overview');
 
+    // Auto-calculate column widths
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const autoWidth = (ws: any, data: any[]) => {
+      if (!data || data.length === 0) return;
+      const headers = Object.keys(data[0]);
+      ws['!cols'] = headers.map(h => {
+        const maxLen = Math.max(h.length, ...data.map(r => String(r[h] ?? '').length));
+        return { wch: Math.min(32, Math.max(10, maxLen + 2)) };
+      });
+    };
+    autoWidth(wsRaw, rawData);
+    autoWidth(wsSummary, summaryData);
+    autoWidth(wsSessions, sessionOverview);
+
     XLSX.writeFile(wb, `DZ_RPE_Football_${team.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
   }
 
-  static exportToPdf(team: Team, players: Player[], sessions: Session[], logs: RPELog[]) {
+  static async exportToPdf(team: Team, players: Player[], sessions: Session[], logs: RPELog[]) {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF();
     const workloads: PlayerWorkload[] = players.map(p => calculatePlayerWorkload(p, logs, sessions));
     
@@ -196,8 +243,8 @@ export class StorageService {
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Club / Équipe : ${team.name} (${team.category}) | Entraîneur : ${team.coachName}`, 14, 22);
-    doc.text(`Date du rapport : ${new Date().toLocaleDateString('fr-FR')} | Ville : ${team.city}, Algérie`, 14, 28);
+    doc.text(`Club / Equipe : ${team.name} (${team.category}) | Entraineur : ${team.coachName}`, 14, 22);
+    doc.text(`Date du rapport : ${new Date().toLocaleDateString('fr-FR')} | Ville : ${team.city}, Algerie`, 14, 28);
 
     // KPI Summary Box
     const totalWeeklyLoad = workloads.reduce((sum, w) => sum + w.acuteLoad7d, 0);
@@ -208,16 +255,16 @@ export class StorageService {
     doc.setTextColor(30, 41, 59);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('SYNTHÈSE DU MICROCYCLE HEBDOMADAIRE', 14, 40);
+    doc.text('SYNTHESE DU MICROCYCLE HEBDOMADAIRE', 14, 40);
 
     const kpiRows = [
-      ['Charge Totale Groupe (7j)', `${totalWeeklyLoad} UA`, 'Joueurs en Zone Rouge (≥ 1.5)', `${dangerCount}`],
-      ['Moyenne ACWR Équipe', `${avgAcwr}`, 'Joueurs en Zone Optimale (0.8 - 1.3)', `${optimalCount}`]
+      ['Charge Totale Groupe (7j)', `${totalWeeklyLoad} UA`, 'Joueurs en Zone Rouge (>= 1.5)', `${dangerCount}`],
+      ['Moyenne ACWR Equipe', `${avgAcwr}`, 'Joueurs en Zone Optimale (0.8 - 1.3)', `${optimalCount}`]
     ];
 
     autoTable(doc, {
       startY: 44,
-      head: [['Indicateur Clé', 'Valeur', 'Indicateur de Risque', 'Nombre']],
+      head: [['Indicateur Cle', 'Valeur', 'Indicateur de Risque', 'Nombre']],
       body: kpiRows,
       theme: 'grid',
       headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -236,15 +283,15 @@ export class StorageService {
       `${w.acuteLoad7d} UA`,
       `${w.chronicLoad28d} UA`,
       w.acwr.toFixed(2),
-      w.acwrStatus.toUpperCase(),
+      w.isCalibrating ? `${w.acwrStatus.toUpperCase()}*` : w.acwrStatus.toUpperCase(),
       w.monotony7d.toFixed(2),
       `${w.strain7d}`,
-      w.hooperTotalAvg.toFixed(1)
+      w.hooperTotalAvg !== null ? w.hooperTotalAvg.toFixed(1) : '-'
     ]);
 
     autoTable(doc, {
       startY: finalY + 14,
-      head: [['N°', 'Joueur', 'Poste', 'Aiguë (7j)', 'Chronique (28j)', 'ACWR', 'Statut', 'Monotonie', 'Strain', 'Hooper']],
+      head: [['N°', 'Joueur', 'Poste', 'Aigue (7j)', 'Chronique (28j)', 'ACWR', 'Statut', 'Monotonie', 'Strain', 'Hooper']],
       body: tableData,
       theme: 'striped',
       headStyles: { fillColor: [0, 98, 51], textColor: [255, 255, 255], fontStyle: 'bold' },
