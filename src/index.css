@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 :root {
   color-scheme: dark;
@@ -9,7 +7,7 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #0f172a;
+  background-color: #090d16;
   color: #f8fafc;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
@@ -26,22 +24,23 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #090d16;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #1e293b;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #334155;
 }
 
 /* Glass card utility */
 .glass-card {
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -51,14 +50,15 @@ body {
 
 .glass-card-hover:hover {
   transform: translateY(-2px);
-  border-color: rgba(16, 185, 129, 0.3);
-  box-shadow: 0 10px 25px -5px rgba(0, 98, 51, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.15);
 }
 
 /* Touch active effects for mobile bench kiosk */
 .touch-press {
   transition: transform 0.1s ease;
 }
+
 .touch-press:active {
   transform: scale(0.96);
 }
