@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="dzGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#006233" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </linearGradient>
+  </defs>
+  <!-- Background Circle -->
+  <circle cx="100" cy="100" r="95" fill="#0f172a" stroke="url(#dzGrad)" stroke-width="8" />
+  
+  <!-- Football outline -->
+  <circle cx="100" cy="100" r="70" fill="none" stroke="#334155" stroke-dasharray="4 4" stroke-width="2" />
+  
+  <!-- Pulse Wave -->
+  <path d="M 35 100 L 65 100 L 78 70 L 95 135 L 112 60 L 126 115 L 138 95 L 165 100" 
+        fill="none" stroke="#10b981" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+        
+  <!-- Algerian Crescent & Star Motif subtle in center top -->
+  <circle cx="100" cy="45" r="14" fill="#d21034" />
+  <circle cx="104" cy="45" r="11" fill="#0f172a" />
+  <!-- Small Star -->
+  <polygon points="103,40 105,43 108,43 106,45 107,48 104,46 102,48 103,45 100,43 103,43" fill="#d21034" />
+
+  <!-- Bottom Badge: DZ U17 -->
+  <rect x="55" y="145" width="90" height="26" rx="13" fill="url(#dzGrad)" />
+  <text x="100" y="163" font-family="Arial, sans-serif" font-weight="900" font-size="13" fill="#ffffff" text-anchor="middle" letter-spacing="1.5">DZ RPE U17</text>
+</svg>
