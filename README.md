@@ -23,6 +23,14 @@ Conçue pour répondre aux contraintes du terrain algérien :
 
 ---
 
+## 📚 Guides de Terrain & Documentation
+
+Pour accompagner le staff technique et les préparateurs physiques sur le terrain :
+* 📖 [**Manuel Complet d'Utilisation (Guide Pas-à-Pas)**](docs/MANUEL_UTILISATEUR.md) : Guide détaillé pas-à-pas couvrant l'installation PWA, le protocole Kiosk, l'interprétation des courbes ACWR, l'export des rapports et la FAQ terrain.
+* 📋 [**Fiche Mémo de Terrain Plastifiable (Format A4 Poche)**](docs/FICHE_TERRAIN_PLASTIFIABLE.md) : Fiche de poche recto-verso prête à imprimer et plastifier pour le vestiaire (Règles d'or du recueil, Échelle Borg en Darija algérienne, Questionnaire Hooper, Arbre décisionnel d'urgence joueur en zone rouge).
+
+---
+
 ## 🔬 Fondements Scientifiques & Algorithmes
 
 ### 1. Session-RPE (Carl Foster, 2001)

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Language } from '../types';
 import { 
   GraduationCap, Mail, MapPin, Award, BookOpen, 
-  Activity, ShieldCheck, Cpu, HeartPulse, ExternalLink, Code2
+  Activity, ShieldCheck, Cpu, HeartPulse, ExternalLink, Code2,
+  FileText, Printer, ChevronDown, ChevronUp, CheckCircle2
 } from 'lucide-react';
 
 interface AboutViewProps {
@@ -10,6 +11,7 @@ interface AboutViewProps {
 }
 
 export const AboutView: React.FC<AboutViewProps> = () => {
+  const [showFiche, setShowFiche] = useState(false);
   return (
     <div className="space-y-8 pb-24 max-w-5xl mx-auto">
       
@@ -216,6 +218,152 @@ export const AboutView: React.FC<AboutViewProps> = () => {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Fiche Mémo Terrain Plastifiable (Poche & Vestiaire) */}
+      <div className="glass-card rounded-3xl p-6 sm:p-7 border-2 border-emerald-500/40 bg-slate-900/95 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <FileText className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="text-lg font-black text-white">
+                  Fiche Mémo Terrain Plastifiable (Format A4 Poche)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Document synthétique officiel pour entraîneurs, préparateurs physiques et directeurs techniques (DTS).
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all shadow-md"
+              title="Imprimer au format A4"
+            >
+              <Printer className="w-4 h-4 text-emerald-400" />
+              <span>Imprimer A4</span>
+            </button>
+            <button
+              onClick={() => setShowFiche(!showFiche)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition-all shadow-lg shadow-emerald-900/40"
+            >
+              <span>{showFiche ? 'Masquer la Fiche' : 'Consulter la Fiche'}</span>
+              {showFiche ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Fiche Content Preview */}
+        {showFiche && (
+          <div className="space-y-6 pt-2 animate-fade-in">
+            {/* RECTO */}
+            <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h4 className="text-sm font-black text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>RECTO : Protocole Terrain & Échelle Borg CR-10</span>
+                </h4>
+                <span className="text-[11px] text-slate-400 font-mono">Banc de Touche / Vestiaire</span>
+              </div>
+
+              {/* 3 Golden Rules */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                  <p className="font-bold text-amber-400">⏰ Règle 1 : 20-30 Minutes</p>
+                  <p className="text-[11px] text-slate-400">Ne jamais noter immédiatement au sifflet final pour éliminer le biais de récence.</p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                  <p className="font-bold text-emerald-400">🤫 Règle 2 : Vote Secret</p>
+                  <p className="text-[11px] text-slate-400">Chaque joueur note seul sans crier sa note pour éviter l'effet de groupe.</p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                  <p className="font-bold text-sky-400">🔄 Règle 3 : Rigueur Microcycle</p>
+                  <p className="text-[11px] text-slate-400">Noter toutes les séances sans interruption pour calibrer l'ACWR.</p>
+                </div>
+              </div>
+
+              {/* Borg Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border border-slate-800 rounded-xl overflow-hidden">
+                  <thead className="bg-slate-900 text-slate-300 text-[11px] uppercase">
+                    <tr>
+                      <th className="p-2 border-b border-slate-800 text-center">Score</th>
+                      <th className="p-2 border-b border-slate-800">Intensité (FR)</th>
+                      <th className="p-2 border-b border-slate-800">بالعربية</th>
+                      <th className="p-2 border-b border-slate-800 text-emerald-400">دارجة جزائرية (Darija)</th>
+                      <th className="p-2 border-b border-slate-800">Exemple Football</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-850 text-slate-300 text-[11px]">
+                    <tr><td className="p-2 text-center font-black text-slate-400">0</td><td className="p-2 font-bold">Repos Total</td><td className="p-2">راحة تامة</td><td className="p-2 text-emerald-300 font-bold">مرتاح، ما كاين والو</td><td className="p-2 text-slate-400">Au lit / Début de vestiaire</td></tr>
+                    <tr><td className="p-2 text-center font-black text-emerald-400">1-2</td><td className="p-2 font-bold">Très Facile à Facile</td><td className="p-2">سهل جداً إلى سهل</td><td className="p-2 text-emerald-300 font-bold">خفيف خلاص، ساهل ما عيّانيش</td><td className="p-2 text-slate-400">Rondo technique calme, échauffement</td></tr>
+                    <tr><td className="p-2 text-center font-black text-teal-400">3-4</td><td className="p-2 font-bold">Modéré à Un Peu Dur</td><td className="p-2">متوسط إلى شاق قليلاً</td><td className="p-2 text-emerald-300 font-bold">عادي، بديت نحس بالتعب</td><td className="p-2 text-slate-400">Conservation dynamique sans pressing</td></tr>
+                    <tr><td className="p-2 text-center font-black text-amber-400">5-6</td><td className="p-2 font-bold">Dur à Difficile</td><td className="p-2">شاق إلى صعب</td><td className="p-2 text-emerald-300 font-bold">صعيب شوية، عرّقني، فيه جري بزاف</td><td className="p-2 text-slate-400">Jeux réduits intenses (4v4, 5v5)</td></tr>
+                    <tr><td className="p-2 text-center font-black text-orange-400">7-8</td><td className="p-2 font-bold">Très Dur à Extrême</td><td className="p-2">شاق جداً إلى للغاية</td><td className="p-2 text-emerald-300 font-bold">عيّان، رجليا تقال، مهلوك</td><td className="p-2 text-slate-400">Intermittent VMA (15-15, 30-30), match officiel</td></tr>
+                    <tr><td className="p-2 text-center font-black text-rose-400">9-10</td><td className="p-2 font-bold">Presque Max à Max</td><td className="p-2">أقصى ما يمكن</td><td className="p-2 text-emerald-300 font-bold">طايب، خرجت ميت، الإغماء</td><td className="p-2 text-slate-400">Épuisement total, crampes généralisées</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* VERSO */}
+            <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h4 className="text-sm font-black text-rose-400 uppercase tracking-wider flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>VERSO : Guide Décisionnel du Coach (Action Matrix)</span>
+                </h4>
+                <span className="text-[11px] text-slate-400 font-mono">Modèle Tim Gabbett (2016)</span>
+              </div>
+
+              {/* Decision Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/30 space-y-1">
+                  <p className="font-bold text-emerald-400">🟢 0.80 - 1.30 : Sweet Spot (Idéal)</p>
+                  <p className="text-[11px] text-slate-300">
+                    Zone optimale de progression et protection contre les blessures. Poursuivre le microcycle normalement.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-rose-500/30 space-y-1">
+                  <p className="font-bold text-rose-400">🔴 ≥ 1.50 : Zone Rouge (Danger x2 à x4)</p>
+                  <p className="text-[11px] text-slate-300">
+                    <strong>Action :</strong> Retirer des blocs de vitesse/sprints, écourter les jeux réduits, limiter le match du WE à 45-60 minutes.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
+                <span>📚 Documentation complète disponible dans le dépôt :</span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://github.com/Salahalioui/dz-rpe-foot/blob/main/docs/MANUEL_UTILISATEUR.md"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-400 hover:underline font-bold inline-flex items-center gap-1"
+                  >
+                    <span>Manuel Utilisateur</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <span>•</span>
+                  <a
+                    href="https://github.com/Salahalioui/dz-rpe-foot/blob/main/docs/FICHE_TERRAIN_PLASTIFIABLE.md"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-400 hover:underline font-bold inline-flex items-center gap-1"
+                  >
+                    <span>Fiche Terrain Markdown</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
     </div>
